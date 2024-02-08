@@ -1,0 +1,25 @@
+resources:
+- "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+  connect_timeout: 1s
+  name: grpc_server
+  type: STATIC
+  typedExtensionProtocolOptions:
+    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+      "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+      explicitHttpConfig:
+        http2ProtocolOptions: {}
+  health_checks:
+    timeout: 1s
+    interval: 1s
+    unhealthy_threshold: 1
+    healthy_threshold: 1
+    tcp_health_check: {}
+  load_assignment:
+    cluster_name: grpc_server
+    endpoints:
+    - lb_endpoints:
+      - endpoint:
+          address:
+            socket_address:
+              address: x.x.x.x
+              port_value: 50051

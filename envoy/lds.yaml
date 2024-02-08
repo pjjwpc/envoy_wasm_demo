@@ -1,0 +1,71 @@
+resources:
+- "@type": type.googleapis.com/envoy.config.listener.v3.Listener
+  name: https-proxy
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 80
+  filter_chains:
+  - name: envoy.filters.network.http_connection_manager
+    filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          generate_request_id: true
+          stat_prefix: ingress_http
+          access_log:
+          - name: envoy.access_loggers.file
+            typedConfig:
+              path: /root/logs/envoy/beta.k8s.access.log
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+              logFormat:
+                textFormat: >
+                  [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%
+                  %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS%
+                  "%REQ(x-sls-otel-project)%" "%REQ(x-sls-otel-instance-id)%"
+                  "%REQ(x-sls-otel-ak-secret)%" "%REQ(x-sls-otel-ak-id)%"
+                  "%GRPC_STATUS%" "%UPSTREAM_HOST%"
+          http_filters:
+          - name: envoy.filters.http.wasm
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+              config:
+                name: "grpc_call"
+                root_id: "grpc_call_root_id"
+                configuration:
+                  '@type': type.googleapis.com/google.protobuf.StringValue
+                  value: {}
+                vm_config:
+                  runtime: "envoy.wasm.runtime.v8"
+                  configuration:
+                    '@type': type.googleapis.com/google.protobuf.StringValue
+                    value: |
+                      {
+                        "cluster": "grpc_server"
+                      }
+                  code:
+                    local:
+                      filename: '/root/envoy/grpc_call.wasm'
+          - name: envoy.filters.http.router
+            typedConfig:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          use_remote_address: true
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: grpc_server
+              domains:
+              - '*'
+              routes:
+              - match:
+                  prefix: "/xxx"
+                directResponse:
+                  status: 200
+                  body:
+                    inline_string: "345345"
+              - match:
+                  prefix: "/"
+                directResponse:
+                  status: 200
+                  body:
+                    inline_string: "123123"
